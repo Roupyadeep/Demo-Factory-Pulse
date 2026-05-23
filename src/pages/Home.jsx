@@ -507,8 +507,6 @@ const styles = {
     borderTop: "1px solid rgba(255,255,255,0.1)",
     fontSize: "13px",
   },
-
-  // Hover effects (to be added via CSS or inline)
 };
 
 // Add hover styles via style tag

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   LineChart,
   Line,
@@ -10,7 +11,7 @@ import {
 } from "recharts";
 
 /* ─── DATA ─────────────────────────────────────────────── */
-const productionData = [
+const defaultProductionData = [
   { time: "12 AM", actual: 200,  target: 300  },
   { time: "3 AM",  actual: 350,  target: 400  },
   { time: "6 AM",  actual: 500,  target: 550  },
@@ -21,7 +22,7 @@ const productionData = [
   { time: "9 PM",  actual: 850,  target: 900  },
 ];
 
-const machines = [
+const defaultMachines = [
   { name: "CNC Machine 1",    status: "Running",     efficiency: 95, color: "#22c55e" },
   { name: "CNC Machine 2",    status: "Running",     efficiency: 90, color: "#22c55e" },
   { name: "Assembly Line 1",  status: "Running",     efficiency: 93, color: "#22c55e" },
@@ -29,22 +30,21 @@ const machines = [
   { name: "Quality Check Unit", status: "Maintenance", efficiency: 0, color: "#ef4444" },
 ];
 
-const alertsData = [
+const defaultAlertsData = [
   { icon: "⚠️", iconBg: "#ef4444", title: "High Temperature Detected",  desc: "Machine CNC-02 temperature is above threshold",   time: "10:24 AM", badge: "High",   badgeBg: "#ef4444", read: false },
   { icon: "⚠️", iconBg: "#eab308", title: "Maintenance Required",        desc: "Packaging Unit requires scheduled maintenance",    time: "09:15 AM", badge: "Medium", badgeBg: "#d97706", read: false },
   { icon: "ℹ️", iconBg: "#3b82f6", title: "Low Efficiency Warning",      desc: "Assembly Line 1 efficiency dropped below 85%",     time: "08:45 AM", badge: "Low",    badgeBg: "#3b82f6", read: false },
   { icon: "✅", iconBg: "#22c55e", title: "Daily Report Generated",      desc: "Daily production report is ready to view",         time: "07:30 AM", badge: "Info",   badgeBg: "#22c55e", read: false },
 ];
 
+// Updated navItems with correct paths matching App.jsx routes
 const navItems = [
-  { label: "Dashboard",    icon: "🏠", active: true  },
-  { label: "Analytics",   icon: "📊"                },
-  { label: "Predictions", icon: "🔮"                },
-  { label: "Machines",    icon: "⚙️"                },
-  { label: "Alerts",      icon: "🔔"                },
-  { label: "Reports",     icon: "📋"                },
-  { label: "AI Assistant",icon: "🤖"                },
-  { label: "Settings",    icon: "⚙️"                },
+  { label: "Dashboard",    icon: "🏠", path: "/dashboard" },
+  { label: "AI Assistant", icon: "🤖", path: "/ai-assistant" },
+  { label: "Predictions",  icon: "🔮", path: "/predictions" },
+  { label: "Machines",     icon: "⚙️", path: "/machines" },
+  { label: "Reports",      icon: "📋", path: "/Report" },
+  { label: "Settings",     icon: "⚙️", path: "/settings" },
 ];
 
 const initChat = [
@@ -79,7 +79,7 @@ const StatCard = ({ icon, iconBg, label, value, unit, change, positive, sparkCol
     </div>
     <div style={{ width: 76, height: 38, flexShrink: 0 }}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={productionData.slice(-6)}>
+        <LineChart data={defaultProductionData.slice(-6)}>
           <Line type="monotone" dataKey="actual" stroke={sparkColor} strokeWidth={2} dot={false} />
         </LineChart>
       </ResponsiveContainer>
@@ -147,48 +147,109 @@ const NotificationPanel = ({ alerts, onClose, onMarkAsRead, darkMode }) => {
 
 /* ─── MAIN DASHBOARD ────────────────────────────────────── */
 export default function Dashboard() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [time, setTime] = useState(new Date());
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeNav, setActiveNav] = useState("Dashboard");
   const [chatMsg, setChatMsg] = useState("");
   const [messages, setMessages] = useState(initChat);
   const [darkMode, setDarkMode] = useState(true);
-  const [alerts, setAlerts] = useState(alertsData);
+  const [alerts, setAlerts] = useState(defaultAlertsData);
   const [showNotifications, setShowNotifications] = useState(false);
+  
+  const [loading, setLoading] = useState(true);
+  const [dbData, setDbData] = useState({
+    stats: { totalProduction: 0, machineEfficiency: 0, energyUsage: 0, defectRate: 0 },
+    productionData: [],
+    machines: [],
+    alertsData: []
+  });
+
   const chatEndRef = useRef(null);
 
-  // Get user data from localStorage
   const user = JSON.parse(localStorage.getItem("currentUser") || "{}");
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
+    fetchDashboardData();
     return () => clearInterval(t);
   }, []);
+
+  // Effect to refetch prediction data when route changes
+  useEffect(() => {
+    fetchDashboardData();
+  }, [location.pathname]);
+
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("http://localhost:8000/dashboard-data", { cache: "no-store" });
+      const data = await res.json();
+      if (data.has_data) {
+        setDbData({
+          stats: data.stats,
+          productionData: data.productionData,
+          machines: data.machines,
+          alertsData: data.alertsData
+        });
+        setAlerts(data.alertsData);
+      }
+      setLoading(false);
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
+    }
+  };
+  const handleCsvUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      await fetch("http://localhost:8000/upload", { method: "POST", body: formData });
+      fetchDashboardData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!chatMsg.trim()) return;
-    setMessages(prev => [...prev, { role: "user", text: chatMsg }]);
+    const userMsg = chatMsg.trim();
+    setMessages(prev => [...prev, { role: "user", text: userMsg }]);
     setChatMsg("");
-    setTimeout(() => {
-      const botReplies = [
-        "Analyzing factory data... I'll get back to you shortly with a detailed report.",
-        "Based on current metrics, efficiency is trending upward. Great job!",
-        "I recommend checking CNC Machine 2's temperature sensors soon.",
-        "Production output is 8.5% above yesterday's target. Excellent performance!"
-      ];
-      setMessages(prev => [...prev, { role: "bot", text: botReplies[Math.floor(Math.random() * botReplies.length)] }]);
-    }, 900);
+    
+    try {
+      const res = await fetch("http://localhost:8000/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: userMsg })
+      });
+      const data = await res.json();
+      setMessages(prev => [...prev, { role: "bot", text: data.answer }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: "bot", text: "❌ Connection error. Is the backend running?" }]);
+    }
   };
 
-  // ✅ Updated: Logout redirects to home page
+  const handleNavClick = (item) => {
+    setActiveNav(item.label);
+    setSidebarOpen(false);
+    if (item.path) {
+      console.log(`Navigating to: ${item.path}`); // For debugging
+      navigate(item.path);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("isLoggedIn");
     localStorage.removeItem("currentUser");
-    window.location.href = "/";
+    navigate("/");
   };
 
   const markAlertAsRead = (index) => {
@@ -233,7 +294,6 @@ export default function Dashboard() {
       {sidebarOpen && <div onClick={() => setSidebarOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 40 }} />}
       {showNotifications && <NotificationPanel alerts={alerts} onClose={() => setShowNotifications(false)} onMarkAsRead={markAlertAsRead} darkMode={darkMode} />}
 
-      {/* SIDEBAR */}
       <aside className={`sidebar${sidebarOpen ? " open" : ""}`} style={{ width: 220, background: darkMode ? "#07111f" : "#ffffff", borderRight: `1px solid ${borderColor}`, display: "flex", flexDirection: "column", flexShrink: 0, transition: "transform .3s" }}>
         <div style={{ padding: "20px 16px 16px", borderBottom: `1px solid ${borderColor}`, display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 38, height: 38, borderRadius: 10, background: "linear-gradient(135deg,#6366f1,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🏭</div>
@@ -244,7 +304,7 @@ export default function Dashboard() {
         </div>
         <nav style={{ flex: 1, padding: "12px 8px", overflowY: "auto" }}>
           {navItems.map(item => (
-            <div key={item.label} className="nav-item" onClick={() => { setActiveNav(item.label); setSidebarOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 11px", borderRadius: 9, marginBottom: 3, cursor: "pointer", background: activeNav === item.label ? "linear-gradient(90deg,#6366f1,#8b5cf6)" : "transparent", color: activeNav === item.label ? "#fff" : textMuted, fontWeight: activeNav === item.label ? 600 : 400, fontSize: 13 }}>
+            <div key={item.label} className="nav-item" onClick={() => handleNavClick(item)} style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 11px", borderRadius: 9, marginBottom: 3, cursor: "pointer", background: activeNav === item.label ? "linear-gradient(90deg,#6366f1,#8b5cf6)" : "transparent", color: activeNav === item.label ? "#fff" : textMuted, fontWeight: activeNav === item.label ? 600 : 400, fontSize: 13 }}>
               <span>{item.icon}</span> {item.label}
             </div>
           ))}
@@ -257,7 +317,6 @@ export default function Dashboard() {
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
         <header style={{ background: headerBg, borderBottom: `1px solid ${borderColor}`, padding: "12px 20px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
           <button onClick={() => setSidebarOpen(v => !v)} style={{ background: "none", border: "none", color: textMuted, fontSize: 21, cursor: "pointer", display: "block" }}>☰</button>
@@ -279,10 +338,17 @@ export default function Dashboard() {
 
         <main style={{ flex: 1, overflowY: "auto", padding: "18px 18px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <StatCard icon="🏭" iconBg="rgba(99,102,241,.18)" label="Total Production" value="12,540" change="8.5%" positive={true} sparkColor="#6366f1" darkMode={darkMode} />
-            <StatCard icon="📈" iconBg="rgba(34,197,94,.18)" label="Machine Efficiency" value="92.4%" change="3.2%" positive={true} sparkColor="#22c55e" darkMode={darkMode} />
-            <StatCard icon="⚡" iconBg="rgba(234,179,8,.18)" label="Energy Usage" value="450" unit="kWh" change="4.7%" positive={false} sparkColor="#eab308" darkMode={darkMode} />
-            <StatCard icon="🛡️" iconBg="rgba(139,92,246,.18)" label="Defect Rate" value="2.35%" change="0.6%" positive={false} sparkColor="#a78bfa" darkMode={darkMode} />
+            {loading ? (
+              <div style={{ color: textMuted, fontSize: 14, padding: '20px' }}>Loading dashboard data...</div>
+            ) : (
+              <>
+                <StatCard icon="🏭" iconBg="rgba(99,102,241,.18)" label="Total Production" value={dbData.stats.totalProduction.toLocaleString()} change="8.5%" positive={true} sparkColor="#6366f1" darkMode={darkMode} />
+                <StatCard icon="📈" iconBg="rgba(34,197,94,.18)" label="Machine Efficiency" value={dbData.stats.machineEfficiency + "%"} change="3.2%" positive={true} sparkColor="#22c55e" darkMode={darkMode} />
+                <StatCard icon="⚡" iconBg="rgba(234,179,8,.18)" label="Energy Usage" value={dbData.stats.energyUsage} unit="kWh" change="4.7%" positive={false} sparkColor="#eab308" darkMode={darkMode} />
+                <StatCard icon="🛡️" iconBg="rgba(139,92,246,.18)" label="Defect Rate" value={dbData.stats.defectRate + "%"} change="0.6%" positive={false} sparkColor="#a78bfa" darkMode={darkMode} />
+              </>
+            )}
+
           </div>
 
           <div className="mid-row" style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
@@ -293,7 +359,7 @@ export default function Dashboard() {
               </div>
               <div style={{ display: "flex", gap: 16, marginBottom: 8, fontSize: 11, color: textMuted }}><span>—— Actual</span><span>- - Target</span></div>
               <ResponsiveContainer width="100%" height={205}>
-                <LineChart data={productionData}>
+                <LineChart data={dbData.productionData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#1e293b" : "#e2e8f0"} />
                   <XAxis dataKey="time" stroke={darkMode ? "#475569" : "#94a3b8"} tick={{ fill: darkMode ? "#64748b" : "#64748b", fontSize: 10 }} />
                   <YAxis stroke={darkMode ? "#475569" : "#94a3b8"} tick={{ fill: darkMode ? "#64748b" : "#64748b", fontSize: 10 }} />
@@ -305,12 +371,20 @@ export default function Dashboard() {
             </div>
 
             <div style={{ flex: "1 1 260px", background: cardBg, border: `1px solid ${borderColor}`, borderRadius: 14, padding: "18px 16px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}><div style={{ fontWeight: 600, fontSize: 14 }}>⚙️ Machine Status</div><span style={{ color: "#6366f1", fontSize: 12, cursor: "pointer" }}>View All</span></div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 88px 1fr", gap: "4px 8px", fontSize: 11, color: textMuted, paddingBottom: 8, borderBottom: `1px solid ${borderColor}`, marginBottom: 4 }}><span>Machine</span><span>Status</span><span>Efficiency</span></div>
-              {machines.map((m, i) => (
-                <div key={m.name} style={{ display: "grid", gridTemplateColumns: "1fr 88px 1fr", gap: "4px 8px", alignItems: "center", padding: "9px 0", borderBottom: i < machines.length - 1 ? `1px solid ${borderColor}` : "none" }}>
-                  <span style={{ fontSize: 12, color: textColor }}>{m.name}</span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: m.color }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: m.color }} />{m.status}</span>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>⚙️ Machine Status</div>
+                <span style={{ color: "#6366f1", fontSize: 12, cursor: "pointer" }} onClick={() => navigate("/machines")}>View All</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 88px 1fr", gap: "4px 8px", fontSize: 11, color: textMuted, paddingBottom: 8, borderBottom: `1px solid ${borderColor}`, marginBottom: 4 }}>
+                <span>Machine</span><span>Status</span><span>Efficiency</span>
+              </div>
+              {dbData.machines.map((m, i) => (
+                <div key={m.name} style={{ display: "grid", gridTemplateColumns: "1fr 88px 1fr", gap: "4px 8px", alignItems: "center", padding: "9px 0", borderBottom: i < dbData.machines.length - 1 ? `1px solid ${borderColor}` : "none" }}>
+                  <span style={{ fontSize: 12, color: textColor, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: m.color }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: m.color }} />
+                    {m.status}
+                  </span>
                   <EfficiencyBar value={m.efficiency} color={m.color} darkMode={darkMode} />
                 </div>
               ))}
@@ -319,12 +393,21 @@ export default function Dashboard() {
 
           <div className="bot-row" style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
             <div style={{ flex: "1 1 300px", background: cardBg, border: `1px solid ${borderColor}`, borderRadius: 14, padding: "18px 16px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}><div style={{ fontWeight: 600, fontSize: 14 }}>🔔 Recent Alerts</div><span style={{ color: "#6366f1", fontSize: 12, cursor: "pointer" }}>View All</span></div>
-              {alerts.slice(0, 4).map((a, i) => (
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>🔔 Recent Alerts</div>
+                <span style={{ color: "#6366f1", fontSize: 12, cursor: "pointer" }} onClick={() => navigate("/alerts")}>View All</span>
+              </div>
+              {dbData.alertsData.slice(0, 4).map((a, i) => (
                 <div key={i} style={{ display: "flex", gap: 10, padding: "9px 0", borderBottom: i < 3 ? `1px solid ${borderColor}` : "none" }}>
                   <div style={{ width: 32, height: 32, borderRadius: 8, background: a.iconBg + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>{a.icon}</div>
-                  <div style={{ flex: 1 }}><div style={{ fontSize: 12, fontWeight: 600 }}>{a.title}</div><div style={{ fontSize: 11, color: textMuted }}>{a.desc}</div></div>
-                  <div style={{ textAlign: "right" }}><div style={{ fontSize: 10, color: textMuted }}>{a.time}</div><span style={{ background: a.badgeBg, borderRadius: 5, padding: "2px 8px", fontSize: 10, color: "#fff" }}>{a.badge}</span></div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600 }}>{a.title}</div>
+                    <div style={{ fontSize: 11, color: textMuted }}>{a.desc}</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 10, color: textMuted }}>{a.time}</div>
+                    <span style={{ background: a.badgeBg, borderRadius: 5, padding: "2px 8px", fontSize: 10, color: "#fff" }}>{a.badge}</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -333,9 +416,14 @@ export default function Dashboard() {
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12, display: "flex", alignItems: "center", gap: 7 }}>🤖 AI Assistant</div>
               <div style={{ flex: 1, overflowY: "auto", minHeight: 150, maxHeight: 195, paddingRight: 2 }}>
                 {messages.map((msg, i) => msg.role === "user" ? (
-                  <div key={i} style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}><div style={{ background: "linear-gradient(90deg,#6366f1,#8b5cf6)", borderRadius: "11px 11px 2px 11px", padding: "8px 12px", fontSize: 12, maxWidth: "82%", color: "#fff" }}>{msg.text}</div></div>
+                  <div key={i} style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+                    <div style={{ background: "linear-gradient(90deg,#6366f1,#8b5cf6)", borderRadius: "11px 11px 2px 11px", padding: "8px 12px", fontSize: 12, maxWidth: "82%", color: "#fff" }}>{msg.text}</div>
+                  </div>
                 ) : (
-                  <div key={i} style={{ display: "flex", gap: 8, marginBottom: 10 }}><div style={{ width: 28, height: 28, borderRadius: "50%", background: darkMode ? "#1e293b" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>🤖</div><div style={{ background: darkMode ? "#1e293b" : "#f1f5f9", borderRadius: "11px 11px 11px 2px", padding: "8px 12px", fontSize: 12, maxWidth: "82%", color: textColor }}>{msg.text}</div></div>
+                  <div key={i} style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: darkMode ? "#1e293b" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>🤖</div>
+                    <div style={{ background: darkMode ? "#1e293b" : "#f1f5f9", borderRadius: "11px 11px 11px 2px", padding: "8px 12px", fontSize: 12, maxWidth: "82%", color: textColor }}>{msg.text}</div>
+                  </div>
                 ))}
                 <div ref={chatEndRef} />
               </div>

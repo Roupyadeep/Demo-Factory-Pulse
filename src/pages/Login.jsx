@@ -24,47 +24,64 @@ function Login() {
     e.preventDefault();
     setError("");
     setIsLoading(true);
-    (async () => {
-      try {
-        const identifier = authMethod === "email" ? { email: formData.email } : { phone: formData.phone };
-        if ((!identifier.email && !identifier.phone) || !formData.password) {
-          setError(`Please enter ${authMethod === "email" ? "email" : "phone number"} and password`);
-          setIsLoading(false);
-          return;
-        }
 
-        // Trim/sanitize inputs to avoid whitespace/formatting mismatches
-        const email = (formData.email || "").trim();
-        const phone = (formData.phone || "").replace(/\D/g, "").trim();
-        const password = (formData.password || "").trim();
-
-        const payload = authMethod === "email" ? { email, password } : { phone, password };
-        console.log("[Login] payload:", payload);
-        const resp = await fetch("http://localhost:5000/api/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-        const data = await resp.json();
-        console.log("[Login] response:", resp.status, data);
-        if (!resp.ok) {
-          setError(data.message || "Invalid credentials");
-          setIsLoading(false);
-          return;
-        }
-
-        const user = data.user;
-        localStorage.setItem("isLoggedIn", "true");
-        localStorage.setItem("currentUser", JSON.stringify(user));
-        alert("Login Successful! Redirecting to Dashboard...");
-        navigate("/dashboard");
-      } catch (err) {
-        console.error(err);
-        setError("Unable to login. Try again later.");
-      } finally {
+    // Simulate network delay
+    setTimeout(() => {
+      const identifier = authMethod === "email" ? formData.email : formData.phone;
+      
+      if (!identifier || !formData.password) {
+        setError(`Please enter ${authMethod === "email" ? "email" : "phone number"} and password`);
         setIsLoading(false);
+        return;
       }
-    })();
+
+      // Get registered user from localStorage
+      const registeredUser = localStorage.getItem("user");
+      
+      if (registeredUser) {
+        const user = JSON.parse(registeredUser);
+        
+        // Check credentials based on auth method
+        const isEmailMatch = authMethod === "email" && user.email === formData.email;
+        const isPhoneMatch = authMethod === "phone" && user.contact === formData.phone;
+        const isPasswordMatch = user.password === formData.password;
+        
+        if ((isEmailMatch || isPhoneMatch) && isPasswordMatch) {
+          // Store login session
+          localStorage.setItem("isLoggedIn", "true");
+          localStorage.setItem("currentUser", JSON.stringify({
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            factoryName: user.factoryName,
+            contact: user.contact
+          }));
+          
+          alert("Login Successful! Redirecting to Dashboard...");
+          navigate("/dashboard");
+        } else {
+          setError("Invalid credentials. Please check your email/phone and password.");
+        }
+      } else {
+        // Demo account for testing if no user registered
+        if ((authMethod === "email" && formData.email === "admin@aifactory.com" && formData.password === "admin123") ||
+            (authMethod === "phone" && formData.phone === "1234567890" && formData.password === "admin123")) {
+          localStorage.setItem("isLoggedIn", "true");
+          localStorage.setItem("currentUser", JSON.stringify({
+            name: "Admin User",
+            email: "admin@aifactory.com",
+            role: "Factory Manager",
+            factoryName: "AI Factory Solutions",
+            contact: "1234567890"
+          }));
+          alert("Login Successful! Redirecting to Dashboard...");
+          navigate("/dashboard");
+        } else {
+          setError("No account found. Please register first or use demo account (admin@aifactory.com / admin123)");
+        }
+      }
+      setIsLoading(false);
+    }, 800);
   };
 
   return (

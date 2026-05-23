@@ -5,7 +5,10 @@ import Login from "./pages/Login";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
 import Dashboard from "./pages/Dashboard";
-import Machine from "./pages/Machine";
+import Machines from "./pages/Machine";
+import Prediction from "./pages/Prediction"; // Add this import
+import Report from "./pages/Report";
+import SettingsPage from "./pages/SettingsPage";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -22,8 +25,8 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/about" element={<About />} />
       <Route path="/contact" element={<Contact />} />
-      
-      {/* Protected Dashboard Route - Requires Login */}
+
+      {/* Protected Routes - Require Login */}
       <Route 
         path="/dashboard" 
         element={
@@ -32,11 +35,41 @@ function App() {
           </ProtectedRoute>
         } 
       />
+      
+      {/* Protected Machine Route */}
       <Route 
         path="/machines" 
         element={
           <ProtectedRoute>
-            <Machine />
+            <Machines />
+          </ProtectedRoute>
+        } 
+      />
+
+      {/* Protected Predictions Route */}
+      <Route 
+        path="/predictions" 
+        element={
+          <ProtectedRoute>
+            <Prediction />
+          </ProtectedRoute>
+        } 
+      />
+      {/* Protected Reports Route */}
+      <Route 
+        path="/Report" 
+        element={
+          <ProtectedRoute>
+            <Report/>
+          </ProtectedRoute>
+        } 
+      />
+      {/* Protected Settings Route */}
+      <Route 
+        path="/settings" 
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
           </ProtectedRoute>
         } 
       />

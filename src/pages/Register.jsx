@@ -42,38 +42,25 @@ function Register() {
     }
     
     setIsLoading(true);
-
-    (async () => {
-      try {
-        const resp = await fetch("http://localhost:5000/api/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-              name: (user.name || "").trim(),
-              email: (user.email || "").trim(),
-              password: (user.password || "").trim(),
-              factoryName: (user.factoryName || "").trim(),
-              role: (user.role || "").trim(),
-              contact: (user.contact || "").replace(/\D/g, "").trim(),
-            })
-        });
-
-        const data = await resp.json();
-        if (!resp.ok) {
-          setErrors({ form: data.message || "Registration failed" });
+    
+    setTimeout(() => {
+      // Check if user already exists
+      const existingUser = localStorage.getItem("user");
+      if (existingUser) {
+        const userData = JSON.parse(existingUser);
+        if (userData.email === user.email) {
+          setErrors({ email: "Email already registered. Please login instead." });
           setIsLoading(false);
           return;
         }
-
-        alert("Registration Successful! Please login to continue.");
-        navigate("/login");
-      } catch (err) {
-        console.error(err);
-        setErrors({ form: "Unable to register. Try again later." });
-      } finally {
-        setIsLoading(false);
       }
-    })();
+      
+      localStorage.setItem("user", JSON.stringify(user));
+      
+      alert("Registration Successful! Please login to continue.");
+      navigate("/");
+      setIsLoading(false);
+    }, 800);
   };
 
   const inputStyle = (field) => ({
@@ -119,7 +106,6 @@ function Register() {
           <p style={{ color: "#94a3b8", textAlign: "center", marginBottom: "20px", fontSize: "13px" }}>
             Join the future of factory management
           </p>
-          {errors.form && <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid #ef4444", color: "#fca5a5", padding: 10, borderRadius: 8, fontSize: 13, marginBottom: 8 }}>{errors.form}</div>}
 
           <input
             type="text"
