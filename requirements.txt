@@ -1,0 +1,18 @@
+# requirements for Factory Pulse AI project
+
+# Front‑end (Vite / React)
+vite==5.4.0
+react==18.3.1
+react-dom==18.3.1
+
+# Back‑end (FastAPI)
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.8.2
+
+# Database (MongoDB example)
+pymongo==4.10.1
+
+# Optional helpers
+python-dotenv==1.0.1   # .env files support
+httpx==0.27.2          # async HTTP client
